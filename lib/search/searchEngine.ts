@@ -203,7 +203,7 @@ function suggest(
     return [];
   }
 
-  return suggestions
+  const uniqueSuggestions = suggestions
     .filter(
       (suggestion) =>
         suggestion.normalized.startsWith(normalized) ||
@@ -223,8 +223,21 @@ function suggest(
 
       return left.value.localeCompare(right.value);
     })
-    .slice(0, 6)
-    .map((suggestion) => ({
+    .reduce<typeof suggestions>((accumulator, suggestion) => {
+      if (
+        accumulator.some(
+          (candidate) => candidate.normalized === suggestion.normalized,
+        )
+      ) {
+        return accumulator;
+      }
+
+      accumulator.push(suggestion);
+      return accumulator;
+    }, [])
+    .slice(0, 6);
+
+  return uniqueSuggestions.map((suggestion) => ({
       value: suggestion.value,
       label: suggestion.value,
       category: suggestion.category,

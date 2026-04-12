@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Archive Atlas",
+  title: "The Digital Curator",
   description:
-    "An intelligent archival search and discovery platform for historical collections.",
+    "A premium archival search and discovery platform for historical collections, chronology, and metadata relationships.",
 };
 
 export default function RootLayout({

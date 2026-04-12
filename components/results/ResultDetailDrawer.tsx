@@ -38,6 +38,23 @@ export function ResultDetailDrawer({
     ["Collection", document.collection],
     ["Format", document.format],
   ] as const;
+  const subjectMetadata = [
+    ...document.subjects.map((subject, index) => ({
+      id: `subject-${index}-${subject}`,
+      label: subject,
+      tone: "teal" as const,
+    })),
+    ...document.tags.map((tag, index) => ({
+      id: `tag-${index}-${tag}`,
+      label: tag,
+      tone: "accent" as const,
+    })),
+    ...document.keywords.map((keyword, index) => ({
+      id: `keyword-${index}-${keyword}`,
+      label: keyword,
+      tone: "default" as const,
+    })),
+  ];
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-[rgba(27,23,16,0.3)] backdrop-blur-sm">
@@ -101,19 +118,9 @@ export function ResultDetailDrawer({
             Subject metadata
           </h3>
           <div className="mt-4 flex flex-wrap gap-2">
-            {document.subjects.map((subject) => (
-              <Badge key={subject} tone="teal">
-                <HighlightText text={subject} terms={highlightTerms} />
-              </Badge>
-            ))}
-            {document.tags.map((tag) => (
-              <Badge key={tag} tone="accent">
-                <HighlightText text={tag} terms={highlightTerms} />
-              </Badge>
-            ))}
-            {document.keywords.map((keyword) => (
-              <Badge key={keyword}>
-                <HighlightText text={keyword} terms={highlightTerms} />
+            {subjectMetadata.map((item) => (
+              <Badge key={`${document.id}-${item.id}`} tone={item.tone}>
+                <HighlightText text={item.label} terms={highlightTerms} />
               </Badge>
             ))}
           </div>
@@ -125,8 +132,8 @@ export function ResultDetailDrawer({
               Why this matched
             </h3>
             <div className="mt-4 flex flex-wrap gap-2">
-              {result.whyMatched.map((reason) => (
-                <Badge key={reason} tone="teal">
+              {result.whyMatched.map((reason, index) => (
+                <Badge key={`${document.id}-reason-${index}`} tone="teal">
                   {reason}
                 </Badge>
               ))}
