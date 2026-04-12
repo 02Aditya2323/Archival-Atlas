@@ -1,0 +1,74 @@
+# OS / filesystem noise
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*.tmp
+*.temp
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.crt
+
+# Logs / runtime noise
+*.log
+logs/
+log/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.pid
+*.pid.lock
+*.seed
+
+# Node / frontend build artifacts
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+**/build/
+**/.turbo/
+**/.cache/
+**/coverage/
+**/.nyc_output/
+**/*.tsbuildinfo
+**/.vercel/
+
+# Python / ML artifacts
+agentfoundry-finetuned(ML)/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.venv/
+**/venv/
+**/env/
+**/.ipynb_checkpoints/
+
+# Local runtime storage
+AgentFoundryFinal_Backend/uploads/
+**/tmp/
+**/temp/
+
+# Docker / local data mounts
+mongo_data/
+uploads_data/
+
+# Misc project noise
+*.orig
