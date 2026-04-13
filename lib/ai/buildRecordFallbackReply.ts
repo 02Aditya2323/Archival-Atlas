@@ -1,5 +1,11 @@
 import type { RecordChatContext } from "@/lib/ai/types";
 
+export const LEGACY_FALLBACK_PREFIX =
+  "Live Gemini responses are temporarily unavailable for this API key, so this answer is grounded only in the record metadata currently loaded in the drawer.";
+
+export const CURRENT_FALLBACK_PREFIX =
+  "A live Gemini response was not available for this request, so this answer is grounded only in the record metadata currently loaded in the drawer.";
+
 function sentenceCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
@@ -26,7 +32,7 @@ export function buildRecordFallbackReply(
   const { document, result, relatedRecords, currentSearchQuery } = context;
 
   const responseParts: string[] = [
-    "Live Gemini responses are temporarily unavailable for this API key, so this answer is grounded only in the record metadata currently loaded in the drawer.",
+    CURRENT_FALLBACK_PREFIX,
   ];
 
   if (question.includes("summarize") || question.includes("summary")) {

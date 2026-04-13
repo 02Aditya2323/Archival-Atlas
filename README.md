@@ -225,7 +225,7 @@ Runs **once at startup**. The frozen `SearchIndex` is reused across every query.
 ```mermaid
 flowchart TD
     subgraph INGEST["Ingest Phase"]
-        A([ArchiveDocument Array]) --> B["normalizeDocuments\nCoerce nulls → empty strings\nParse date strings → year int\nCompute completeness 0.0–1.0\nAssemble searchable field strings"]
+        A(["ArchiveDocument Array"]) --> B["normalizeDocuments\nCoerce nulls → empty strings\nParse date strings → year int\nCompute completeness 0.0–1.0\nAssemble searchable field strings"]
         B --> C["buildIndex entry point"]
     end
 
@@ -255,7 +255,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    RAW([Raw string from user]) --> FQ["① Field qualifier regex\n/field:value/g\nRoutes to:\nsearchableFieldTerms or\nfacetFieldTerms dict"]
+    RAW(["Raw string from user"]) --> FQ["① Field qualifier regex\n/field:value/g\nRoutes to:\nsearchableFieldTerms or\nfacetFieldTerms dict"]
     FQ --> PH["② Phrase extraction\n/\"quoted text\"/g\nnormalize → phrases[]"]
     PH --> YR["③ Year range regex\n'1840-1900' or '1840 to 1900'\n→ yearRange tuple"]
     YR --> YS["④ Year scan\n/\\d{4}/g → years[]"]
@@ -269,7 +269,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    PQ([ParsedQuery]) --> TG["Assemble termGroups[]\nfreeTerms → all 8 fields\nfieldTerms → targeted field\nphrases → all fields, kind=phrase"]
+    PQ(["ParsedQuery"]) --> TG["Assemble termGroups[]\nfreeTerms → all 8 fields\nfieldTerms → targeted field\nphrases → all fields, kind=phrase"]
     TG --> EMPTY{No terms?}
     EMPTY -->|Yes| ALL["Return all doc IDs\nbrowse mode"]
     EMPTY -->|No| ITER["Iterate each termGroup"]
@@ -283,14 +283,17 @@ flowchart TD
     GS --> BOOL{mode?}
     BOOL -->|AND| INT["intersectSets(groupSets)\ndocId must appear in all groups"]
     BOOL -->|OR| UNION["flat union — any match qualifies"]
-    INT & UNION --> RET(["candidateIds[]\nevidence Map"])
+```mermaid
+flowchart TD
+    CAND(["candidateIds[]\nevidence Map"]) --> RET
+    RET(["CandidateRetrieval {\n  candidateIds: string[]\n  evidence: Map(docId → MatchEvidence)\n}"])
 ```
 
 ### Reranking & Scoring (`rerankResults.ts`)
 
 ```mermaid
 flowchart TD
-    CAND([candidateIds + evidence]) --> HT{hasText?}
+    CAND(["candidateIds + evidence"]) --> HT{hasText?}
 
     HT -->|No — browse| BROWSE["score += completeness × 2.2\nhas year → +0.12"]
 
@@ -377,7 +380,7 @@ Three-pass co-occurrence scan over the top 36 ranked results:
 
 ```mermaid
 flowchart TD
-    DOCS([top 36 ranked ArchiveDocuments]) --> P1
+    DOCS(["top 36 ranked ArchiveDocuments"]) --> P1
 
     subgraph P1["Pass 1 — Count Pass"]
         PC["placeCounts Map\ndoc.place → frequency\ne.g. Manama→3, London→2"]
@@ -408,7 +411,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    RG([RelationshipGraph + variant]) --> VS
+    RG(["RelationshipGraph + variant"]) --> VS
 
     subgraph VS["Variant Constants"]
         RAIL["RAIL\nSVG 420px\nleftCircleX=144, rightCircleX=248\npillWidth=120, curveStrength=48\nmaxNodes=5, maxEdges=10"]
