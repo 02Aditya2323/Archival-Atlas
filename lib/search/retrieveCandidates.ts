@@ -1,6 +1,5 @@
 import { tokenize } from "./tokenize";
 import type { MatchKind, ParsedQuery, SearchField, SearchIndex } from "./types";
-import { SEARCHABLE_FIELDS } from "./types";
 
 interface MatchEvidence {
   matchedFields: Set<SearchField>;
@@ -150,39 +149,16 @@ export function retrieveCandidates(
   parsedQuery: ParsedQuery,
 ): CandidateRetrieval {
   const evidence = new Map<string, MatchEvidence>();
-  const groupSets: Set<string>[] = [];
+  const groupSets: Array<{ operator: "AND" | "OR" | null; docs: Set<string> }> = [];
 
-  const termGroups = [
-    ...parsedQuery.freeTerms.map((term) => ({
-      id: `free:${term}`,
-      value: term,
-      fields: SEARCHABLE_FIELDS,
-      kind: "term" as const,
-    })),
-    ...Object.entries(parsedQuery.searchableFieldTerms).flatMap(([field, values]) =>
-      (values ?? []).map((value) => ({
-        id: `${field}:${value}`,
-        value,
-        fields: [field as SearchField] as SearchField[],
-        kind: value.includes(" ") ? ("phrase" as const) : ("term" as const),
-      })),
-    ),
-    ...parsedQuery.phrases.map((phrase) => ({
-      id: `phrase:${phrase}`,
-      value: phrase,
-      fields: SEARCHABLE_FIELDS,
-      kind: "phrase" as const,
-    })),
-  ];
-
-  if (termGroups.length === 0) {
+  if (parsedQuery.booleanClauses.length === 0) {
     return {
       candidateIds: index.documents.map((document) => document.id),
       evidence,
     };
   }
 
-  termGroups.forEach((group) => {
+  parsedQuery.booleanClauses.forEach((group) => {
     const groupMatches = new Set<string>();
 
     if (group.kind === "term") {
@@ -249,13 +225,24 @@ export function retrieveCandidates(
       });
     }
 
-    groupSets.push(groupMatches);
+    groupSets.push({
+      operator: group.operator,
+      docs: groupMatches,
+    });
   });
 
-  const candidateIds =
-    parsedQuery.mode === "AND"
-      ? [...intersectSets(groupSets)]
-      : [...new Set(groupSets.flatMap((group) => [...group]))];
+  const [firstGroup, ...restGroups] = groupSets;
+  const candidateIds = firstGroup
+    ? [
+        ...restGroups.reduce((current, group) => {
+          if (group.operator === "OR") {
+            return new Set([...current, ...group.docs]);
+          }
+
+          return intersectSets([current, group.docs]);
+        }, new Set(firstGroup.docs)),
+      ]
+    : [];
 
   return {
     candidateIds,

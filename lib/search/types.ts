@@ -9,6 +9,14 @@ export const SEARCHABLE_FIELDS = [
   "collection",
 ] as const;
 
+export const BOOLEAN_SEARCH_FIELDS = [
+  "title",
+  "description",
+  "subjects",
+  "tags",
+  "place",
+] as const;
+
 export const FIELD_WEIGHTS: Record<SearchField, number> = {
   title: 5,
   subjects: 4,
@@ -31,6 +39,7 @@ export const VIEW_MODES = ["list", "grid"] as const;
 export const EXPLORER_MODES = ["results", "relationships"] as const;
 
 export type SearchField = (typeof SEARCHABLE_FIELDS)[number];
+export type BooleanOperator = "AND" | "OR";
 export type SortOption = (typeof SORT_OPTIONS)[number]["value"];
 export type ViewMode = (typeof VIEW_MODES)[number];
 export type ExplorerMode = (typeof EXPLORER_MODES)[number];
@@ -101,6 +110,13 @@ export interface ParsedQuery {
   normalized: string;
   freeTerms: string[];
   phrases: string[];
+  booleanClauses: Array<{
+    id: string;
+    value: string;
+    fields: SearchField[];
+    kind: "term" | "phrase";
+    operator: BooleanOperator | null;
+  }>;
   searchableFieldTerms: Partial<Record<SearchField, string[]>>;
   facetFieldTerms: Partial<
     Record<"type" | "region" | "language" | "holdingInstitution", string[]>
