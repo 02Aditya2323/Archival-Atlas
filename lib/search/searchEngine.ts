@@ -7,6 +7,7 @@ import type {
   ArchiveDocument,
   ParsedQuery,
   RelationshipGraph,
+  SearchResultItem,
   SearchFilters,
   SearchResponse,
   SortOption,
@@ -93,66 +94,230 @@ function buildTimeline(
   };
 }
 
-function buildRelationshipGraph(documents: ArchiveDocument[]): RelationshipGraph {
-  const placeCounts = new Map<string, number>();
-  const subjectCounts = new Map<string, number>();
-  const edgeCounts = new Map<string, number>();
+interface RelationshipCorpusStats {
+  totalDocuments: number;
+  placeFrequencies: Map<string, number>;
+  subjectFrequencies: Map<string, number>;
+}
+
+function buildRelationshipCorpusStats(documents: ArchiveDocument[]): RelationshipCorpusStats {
+  const placeFrequencies = new Map<string, number>();
+  const subjectFrequencies = new Map<string, number>();
 
   documents.forEach((document) => {
-    placeCounts.set(document.place, (placeCounts.get(document.place) ?? 0) + 1);
-    document.subjects.forEach((subject) => {
-      subjectCounts.set(subject, (subjectCounts.get(subject) ?? 0) + 1);
-      const edgeKey = `${document.place}:::${subject}`;
-      edgeCounts.set(edgeKey, (edgeCounts.get(edgeKey) ?? 0) + 1);
+    placeFrequencies.set(document.place, (placeFrequencies.get(document.place) ?? 0) + 1);
+
+    [...new Set(document.subjects)].forEach((subject) => {
+      subjectFrequencies.set(subject, (subjectFrequencies.get(subject) ?? 0) + 1);
     });
   });
 
-  const leftNodes = [...placeCounts.entries()]
-    .sort((left, right) => right[1] - left[1])
+  return {
+    totalDocuments: documents.length,
+    placeFrequencies,
+    subjectFrequencies,
+  };
+}
+
+function buildRelationshipQueryTerms(parsedQuery: ParsedQuery) {
+  return [...new Set(parsedQuery.highlightTerms.map((term) => normalizeText(term)).filter(Boolean))];
+}
+
+function isRelationshipQueryRelevant(value: string, queryTerms: string[]) {
+  const normalized = normalizeText(value);
+  return queryTerms.some(
+    (term) => normalized.includes(term) || term.includes(normalized),
+  );
+}
+
+function subjectPenalty(
+  subjectFrequency: number,
+  totalDocuments: number,
+  queryRelevant: boolean,
+) {
+  if (queryRelevant) {
+    return 1.16;
+  }
+
+  const ratio = subjectFrequency / Math.max(totalDocuments, 1);
+  if (ratio >= 0.32) {
+    return 0.26;
+  }
+  if (ratio >= 0.22) {
+    return 0.48;
+  }
+  if (ratio >= 0.12) {
+    return 0.74;
+  }
+  return 1;
+}
+
+function normalizeResultWeight(
+  score: number,
+  minScore: number,
+  maxScore: number,
+  rankIndex: number,
+) {
+  if (maxScore <= minScore) {
+    return Math.max(0.5, 1 - rankIndex * 0.03);
+  }
+
+  return 0.4 + ((score - minScore) / (maxScore - minScore)) * 0.6;
+}
+
+function buildRelationshipGraph(
+  results: SearchResultItem[],
+  parsedQuery: ParsedQuery,
+  corpusStats: RelationshipCorpusStats,
+): RelationshipGraph {
+  const slice = results.slice(0, 36);
+  if (!slice.length) {
+    return { leftNodes: [], rightNodes: [], edges: [] };
+  }
+
+  const queryTerms = buildRelationshipQueryTerms(parsedQuery);
+  const scores = slice.map((result) => result.score);
+  const minScore = Math.min(...scores);
+  const maxScore = Math.max(...scores);
+  const placeNodes = new Map<string, { count: number; weightedCount: number; score: number }>();
+  const subjectNodes = new Map<string, { count: number; weightedCount: number; score: number }>();
+  const edgeMap = new Map<
+    string,
+    { place: string; subject: string; sharedRecords: number; weightedCount: number; weight: number }
+  >();
+
+  slice.forEach((result, rankIndex) => {
+    const { document } = result;
+    const baseWeight = normalizeResultWeight(result.score, minScore, maxScore, rankIndex);
+    const placeFrequency = corpusStats.placeFrequencies.get(document.place) ?? 1;
+    const placeIdf = Math.log(1 + corpusStats.totalDocuments / placeFrequency);
+    const placeRelevant = isRelationshipQueryRelevant(document.place, queryTerms);
+    const placeBoost = placeRelevant ? 1.08 : 1;
+
+    const currentPlace = placeNodes.get(document.place) ?? {
+      count: 0,
+      weightedCount: 0,
+      score: 0,
+    };
+
+    currentPlace.count += 1;
+    currentPlace.weightedCount += baseWeight;
+    currentPlace.score += baseWeight * placeIdf * placeBoost;
+    placeNodes.set(document.place, currentPlace);
+
+    [...new Set(document.subjects)].forEach((subject) => {
+      const subjectFrequency = corpusStats.subjectFrequencies.get(subject) ?? 1;
+      const subjectIdf = Math.log(1 + corpusStats.totalDocuments / subjectFrequency);
+      const subjectRelevant = isRelationshipQueryRelevant(subject, queryTerms);
+      const subjectBoost = subjectPenalty(
+        subjectFrequency,
+        corpusStats.totalDocuments,
+        subjectRelevant,
+      );
+      const weightedContribution = baseWeight * subjectBoost;
+
+      const currentSubject = subjectNodes.get(subject) ?? {
+        count: 0,
+        weightedCount: 0,
+        score: 0,
+      };
+
+      currentSubject.count += 1;
+      currentSubject.weightedCount += weightedContribution;
+      currentSubject.score += weightedContribution * subjectIdf;
+      subjectNodes.set(subject, currentSubject);
+
+      const edgeKey = `${document.place}:::${subject}`;
+      const currentEdge = edgeMap.get(edgeKey) ?? {
+        place: document.place,
+        subject,
+        sharedRecords: 0,
+        weightedCount: 0,
+        weight: 0,
+      };
+
+      currentEdge.sharedRecords += 1;
+      currentEdge.weightedCount += baseWeight;
+      currentEdge.weight +=
+        (baseWeight * subjectBoost * placeBoost) /
+        Math.sqrt(placeFrequency * subjectFrequency);
+      edgeMap.set(edgeKey, currentEdge);
+    });
+  });
+
+  const rankedLeftNodes = [...placeNodes.entries()]
+    .sort(
+      (left, right) =>
+        right[1].score - left[1].score ||
+        right[1].weightedCount - left[1].weightedCount ||
+        right[1].count - left[1].count ||
+        left[0].localeCompare(right[0]),
+    )
     .slice(0, 7)
-    .map(([label, count]) => ({
+    .map(([label, node]) => ({
       id: `place:${label}`,
       label,
       side: "left" as const,
       category: "place" as const,
-      count,
+      count: node.count,
+      weightedCount: Number(node.weightedCount.toFixed(3)),
+      score: Number(node.score.toFixed(3)),
     }));
 
-  const rightNodes = [...subjectCounts.entries()]
-    .sort((left, right) => right[1] - left[1])
+  const rankedRightNodes = [...subjectNodes.entries()]
+    .sort(
+      (left, right) =>
+        right[1].score - left[1].score ||
+        right[1].weightedCount - left[1].weightedCount ||
+        right[1].count - left[1].count ||
+        left[0].localeCompare(right[0]),
+    )
     .slice(0, 7)
-    .map(([label, count]) => ({
+    .map(([label, node]) => ({
       id: `subject:${label}`,
       label,
       side: "right" as const,
       category: "subject" as const,
-      count,
+      count: node.count,
+      weightedCount: Number(node.weightedCount.toFixed(3)),
+      score: Number(node.score.toFixed(3)),
     }));
 
-  const allowedPlaces = new Set(leftNodes.map((node) => node.label));
-  const allowedSubjects = new Set(rightNodes.map((node) => node.label));
-
-  const edges = [...edgeCounts.entries()]
-    .map(([key, weight]) => {
-      const [place, subject] = key.split(":::");
-      return {
-        id: key,
-        source: `place:${place}`,
-        target: `subject:${subject}`,
-        weight,
-      };
-    })
+  const allowedPlaces = new Set(rankedLeftNodes.map((node) => node.label));
+  const allowedSubjects = new Set(rankedRightNodes.map((node) => node.label));
+  const rankedEdges = [...edgeMap.values()]
     .filter(
-      (edge) =>
-        allowedPlaces.has(edge.source.replace("place:", "")) &&
-        allowedSubjects.has(edge.target.replace("subject:", "")),
+      (edge) => allowedPlaces.has(edge.place) && allowedSubjects.has(edge.subject),
     )
-    .sort((left, right) => right.weight - left.weight)
-    .slice(0, 16);
+    .sort(
+      (left, right) =>
+        right.weight - left.weight ||
+        right.weightedCount - left.weightedCount ||
+        right.sharedRecords - left.sharedRecords,
+    );
+
+  const strongestWeight = rankedEdges[0]?.weight ?? 0;
+  const edges = rankedEdges
+    .filter(
+      (edge, index) =>
+        index < 5 || edge.weight >= strongestWeight * 0.22 || edge.sharedRecords >= 2,
+    )
+    .slice(0, 12)
+    .map((edge) => ({
+      id: `${edge.place}:::${edge.subject}`,
+      source: `place:${edge.place}`,
+      target: `subject:${edge.subject}`,
+      weight: Number(edge.weight.toFixed(3)),
+      sharedRecords: edge.sharedRecords,
+      weightedCount: Number(edge.weightedCount.toFixed(3)),
+    }));
+
+  const connectedLeft = new Set(edges.map((edge) => edge.source));
+  const connectedRight = new Set(edges.map((edge) => edge.target));
 
   return {
-    leftNodes,
-    rightNodes,
+    leftNodes: rankedLeftNodes.filter((node) => connectedLeft.has(node.id)),
+    rightNodes: rankedRightNodes.filter((node) => connectedRight.has(node.id)),
     edges,
   };
 }
@@ -257,6 +422,7 @@ export interface SearchEngineInstance {
 
 export function createSearchEngine(documents: ArchiveDocument[]): SearchEngineInstance {
   const index = buildIndex(documents);
+  const relationshipCorpusStats = buildRelationshipCorpusStats(documents);
 
   return {
     index,
@@ -286,7 +452,9 @@ export function createSearchEngine(documents: ArchiveDocument[]): SearchEngineIn
       );
 
       const relationshipGraph = buildRelationshipGraph(
-        results.slice(0, 36).map((result) => result.document),
+        results,
+        parsedQuery,
+        relationshipCorpusStats,
       );
 
       return {

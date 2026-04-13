@@ -47,6 +47,13 @@ function toggleValue(values: string[], value: string) {
   return [...values, value];
 }
 
+function ensureValue(values: string[], value: string) {
+  const normalized = normalizeText(value);
+  return values.some((candidate) => normalizeText(candidate) === normalized)
+    ? values
+    : [...values, value];
+}
+
 function countActiveFilters(filters: SearchFilters) {
   return (
     filters.types.length +
@@ -186,6 +193,16 @@ export function DiscoveryApp({ documents, gatewayCommand = null }: DiscoveryAppP
     });
   };
 
+  const applyRelationshipPivot = (place: string, subject: string) => {
+    startTransition(() => {
+      setFilters((current) => ({
+        ...current,
+        places: ensureValue(current.places, place),
+        subjects: ensureValue(current.subjects, subject),
+      }));
+    });
+  };
+
   return (
     <main className="relative min-h-screen px-4 pb-10 pt-4 md:px-6 md:pb-12 lg:px-8">
       <div className="mx-auto max-w-[1600px] space-y-5">
@@ -261,6 +278,7 @@ export function DiscoveryApp({ documents, gatewayCommand = null }: DiscoveryAppP
                   onRangeChange={updateDateRange}
                   onSelectPlace={(value) => updateFilter("places", value)}
                   onSelectSubject={(value) => updateFilter("subjects", value)}
+                  onSelectEdge={applyRelationshipPivot}
                 />
 
                 <section className="panel rounded-[1.8rem] p-5">
@@ -308,8 +326,8 @@ export function DiscoveryApp({ documents, gatewayCommand = null }: DiscoveryAppP
                   onSuggestionSelect={setQuery}
                 />
 
-                <aside className="space-y-6 xl:sticky xl:top-5">
-                  <div ref={timelineRef}>
+                <aside className="space-y-5 xl:self-start">
+                  <div ref={timelineRef} className="xl:sticky xl:top-5">
                     <TimelineView
                       timeline={response.timeline}
                       resultCount={response.total}
@@ -323,6 +341,7 @@ export function DiscoveryApp({ documents, gatewayCommand = null }: DiscoveryAppP
                       graph={response.relationshipGraph}
                       onSelectPlace={(value) => updateFilter("places", value)}
                       onSelectSubject={(value) => updateFilter("subjects", value)}
+                      onSelectEdge={applyRelationshipPivot}
                       variant="rail"
                     />
                   ) : null}

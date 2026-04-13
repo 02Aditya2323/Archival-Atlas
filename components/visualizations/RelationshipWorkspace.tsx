@@ -9,6 +9,7 @@ interface RelationshipWorkspaceProps {
   resultCount: number;
   onSelectPlace: (value: string) => void;
   onSelectSubject: (value: string) => void;
+  onSelectEdge: (place: string, subject: string) => void;
   onRangeChange: (value: [number, number] | null) => void;
 }
 
@@ -22,7 +23,7 @@ function strongestConnection(graph: RelationshipGraph) {
   const subject =
     graph.rightNodes.find((node) => node.id === edge.target)?.label ?? edge.target;
 
-  return { place, subject, weight: edge.weight };
+  return { place, subject, weight: edge.weight, sharedRecords: edge.sharedRecords };
 }
 
 export function RelationshipWorkspace({
@@ -31,6 +32,7 @@ export function RelationshipWorkspace({
   resultCount,
   onSelectPlace,
   onSelectSubject,
+  onSelectEdge,
   onRangeChange,
 }: RelationshipWorkspaceProps) {
   const topPlace = graph.leftNodes[0] ?? null;
@@ -43,6 +45,7 @@ export function RelationshipWorkspace({
         graph={graph}
         onSelectPlace={onSelectPlace}
         onSelectSubject={onSelectSubject}
+        onSelectEdge={onSelectEdge}
         variant="workspace"
       />
 
@@ -68,7 +71,9 @@ export function RelationshipWorkspace({
                 {topPlace?.label ?? "Awaiting context"}
               </p>
               <div className="mt-2">
-                <Badge tone="teal">{topPlace?.count ?? 0} linked records</Badge>
+                <Badge tone="teal">
+                  {topPlace?.count ?? 0} records · score {topPlace?.score.toFixed(2) ?? "0.00"}
+                </Badge>
               </div>
             </div>
 
@@ -80,7 +85,9 @@ export function RelationshipWorkspace({
                 {topTheme?.label ?? "Awaiting context"}
               </p>
               <div className="mt-2">
-                <Badge tone="accent">{topTheme?.count ?? 0} linked records</Badge>
+                <Badge tone="accent">
+                  {topTheme?.count ?? 0} records · score {topTheme?.score.toFixed(2) ?? "0.00"}
+                </Badge>
               </div>
             </div>
 
@@ -95,7 +102,9 @@ export function RelationshipWorkspace({
               </p>
               {strongest ? (
                 <div className="mt-2">
-                  <Badge>{strongest.weight} shared records</Badge>
+                  <Badge>
+                    {strongest.sharedRecords} records · score {strongest.weight.toFixed(2)}
+                  </Badge>
                 </div>
               ) : null}
             </div>

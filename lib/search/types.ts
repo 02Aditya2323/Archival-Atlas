@@ -197,6 +197,8 @@ export interface RelationshipNode {
   side: "left" | "right";
   category: "place" | "subject";
   count: number;
+  weightedCount: number;
+  score: number;
 }
 
 export interface RelationshipEdge {
@@ -204,6 +206,8 @@ export interface RelationshipEdge {
   source: string;
   target: string;
   weight: number;
+  sharedRecords: number;
+  weightedCount: number;
 }
 
 export interface RelationshipGraph {
