@@ -338,6 +338,7 @@ export function DiscoveryApp({ documents, gatewayCommand = null }: DiscoveryAppP
         result={selectedResult}
         relatedRecords={relatedRecords}
         highlightTerms={parsedQuery.highlightTerms}
+        currentSearchQuery={query}
         onClose={() => setSelectedRecordId(null)}
         onSelectRecord={setSelectedRecordId}
       />
